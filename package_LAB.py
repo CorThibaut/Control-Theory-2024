@@ -91,13 +91,7 @@ def PID_RT(SP, PV, Man , MVMan, MVFF, Kc, Ti, Td, alpha, Ts, MVMin,  MVMax, MV, 
         MVI.append((Kc*Ts/Ti)*E[-1])
     else :
         MVI.append(MVI[-1] + (Kc*Ts/Ti)*E[-1])
-        
-        #Ici, on utilise pas TRAP, mais je les laisse au cas ou on veut essayer
-        #if method == 'TRAP':
-            #MVI.append(MVI[-1] + (0.5*Kc*Ts/Ti)*(E[-1]+E[-2]))
-        #else :
-            #MVI.append(MVI[-1] + (Kc*Ts/Ti)*E[-1])
-        
+                
     #Initialisation of derivative action
     if len(MVD)==0:
         MVD.append(0)
@@ -124,3 +118,41 @@ def PID_RT(SP, PV, Man , MVMan, MVFF, Kc, Ti, Td, alpha, Ts, MVMin,  MVMax, MV, 
                 
     #Addition of all actions
     MV.append(MVP[-1]+MVI[-1]+MVD[-1]+MVFF[-1])
+
+#-----------------------------------------------------------------------------------------------------
+def IMCTuning(k, Tlag1, Tlag2=0, theta=0, gamma=0.5, process='SOPDT'):
+    
+    """
+    IMCTuning(K, Tlag1, Tlag2=0, theta=0, gamma=0.5, process='SOPDT')
+    
+    The function "IMCTuning" computes the IMC PID tuning parameters for SOPDT processes.
+    For a SOPDT process we impleent the line I of the IMC tuning table (with T3=0)
+    
+    :K: process gain
+    :Tlag1: first (or main) lag time constant [s]
+    :Tlag2: second lag time constant [s]
+    :theta: process delay
+    :gamma: loop response time as a ratio of T1
+    """
+    
+    Kc = ((Tlag1+Tlag2)/((gamma*Tlag1) + theta))/k
+    Ti = Tlag1 + Tlag2
+    Td = (Tlag1*Tlag2)/(Tlag1+Tlag2)
+    
+    return Kc, Ti, Td
+
+
+#-----------------------------------------------------------------------------------------------------
+# def Margins()
+
+
+#-----------------------------------------------------------------------------------------------------
+class Controller():
+        
+    def __init__(self, parameters):
+        
+        self.parameters = parameters
+        self.parameters['Kc'] = parameters['Kc'] if 'Kc' in parameters else 2.0
+        self.parameters['Ti'] = parameters['Ti'] if 'Ti' in parameters else 100.0
+        self.parameters['Td'] = parameters['Td'] if 'Td' in parameters else 10.0
+        self.parameters['alpha'] = parameters['alpha'] if 'alpha' in parameters else 1.0
