@@ -91,18 +91,15 @@ def PID_RT(SP, PV, Man , MVMan, MVFF, Kc, Ti, Td, alpha, Ts, MVMin,  MVMax, MV, 
         MVI.append((Kc*Ts/Ti)*E[-1])
     else :
         MVI.append(MVI[-1] + (Kc*Ts/Ti)*E[-1])
-        
-        #Ici, on utilise pas TRAP, mais je les laisse au cas ou on veut essayer
-        #if method == 'TRAP':
-            #MVI.append(MVI[-1] + (0.5*Kc*Ts/Ti)*(E[-1]+E[-2]))
-        #else :
-            #MVI.append(MVI[-1] + (Kc*Ts/Ti)*E[-1])
-        
+                
     #Initialisation of derivative action
     if len(MVD)==0:
         MVD.append(0)
     else:
         MVD.append((Td/(Td+Ts)*MVD[-1]) + ((Kc*Td)/(Td+Ts))*(E[-1]-E[-2]))
+        # MVD.append((alpha*Td/(alpha*Td+Ts))*MVD[-1] + ((Kc*Td*alpha)/(alpha*Td+Ts))*(E[-1]-E[-2]))
+
+    
           
     #Manual mode + anti wind-up
     if Man[-1] == True:
@@ -124,3 +121,92 @@ def PID_RT(SP, PV, Man , MVMan, MVFF, Kc, Ti, Td, alpha, Ts, MVMin,  MVMax, MV, 
                 
     #Addition of all actions
     MV.append(MVP[-1]+MVI[-1]+MVD[-1]+MVFF[-1])
+
+#-----------------------------------------------------------------------------------------------------
+def IMCTuning(k, Tlag1, Tlag2=0, theta=0, gamma=0.5, process='SOPDT'):
+    
+    """
+    IMCTuning(K, Tlag1, Tlag2=0, theta=0, gamma=0.5, process='SOPDT')
+    
+    The function "IMCTuning" computes the IMC PID tuning parameters for SOPDT processes.
+    For a SOPDT process we impleent the line I of the IMC tuning table (with T3=0)
+    
+    :K: process gain
+    :Tlag1: first (or main) lag time constant [s]
+    :Tlag2: second lag time constant [s]
+    :theta: process delay
+    :gamma: loop response time as a ratio of T1
+    """
+    
+    Kc = ((Tlag1+Tlag2)/((gamma*Tlag1) + theta))/k
+    Ti = Tlag1 + Tlag2
+    Td = (Tlag1*Tlag2)/(Tlag1+Tlag2)
+    
+    return Kc, Ti, Td
+
+
+#-----------------------------------------------------------------------------------------------------
+def Margins(P, C, omega):
+    
+    PC = Process({})
+    PC.parameters['Kp'] = P.parameters['Kp'] * C.parameters['Kc']
+    PC.parameters['Tlag1'] = P.parameters['Tlag1'] * C.parameters['Ti']
+    PC.parameters['Tlag2'] = P.parameters['Tlag2'] * C.parameters['Td']
+    PC.parameters['theta'] = P.parameters['theta'] * C.parameters['alpha']
+    
+    s = 1j*omega
+    
+    PCtheta = np.exp(-PC.parameters['theta']*s)
+    PCGain = PC.parameters['Kp']*np.ones_like(PCtheta)
+    PCLag1 = 1/(PC.parameters['Tlag1']*s + 1)
+    PCLag2 = 1/(PC.parameters['Tlag2']*s + 1)
+    
+    PCs = np.multiply(PCtheta,PCGain)
+    PCs = np.multiply(PCs,PCLag1)
+    PCs = np.multiply(PCs,PCLag2)
+    
+    fig, (ax_gain, ax_phase) = plt.subplots(2,1)
+    fig.set_figheight(12)
+    fig.set_figwidth(22)
+
+    # Calculate gain and phase
+    gain = 20*np.log10(np.abs(PCs))
+    phase_deg = (180/np.pi)*np.unwrap(np.angle(PCs))
+    
+    # Plot gain
+    ax_gain.semilogx(omega, gain)
+    ax_gain.set_xlim([np.min(omega), np.max(omega)])
+    ax_gain.set_ylim([np.min(20*np.log10(np.abs(PCs)/5)), np.max(20*np.log10(np.abs(PCs)*5))])
+    ax_gain.axhline(y=0, color='b', linestyle='--')
+    ax_gain.set_ylabel('Amplitude [dB]')
+    ax_gain.set_title('Bode plot')
+
+    # Plot phase
+    ax_phase.semilogx(omega, phase_deg)
+    ax_phase.set_xlim([np.min(omega), np.max(omega)])
+    ax_phase.set_ylim([-200, np.max(phase_deg)+10])
+    ax_phase.axhline(y=-180, color='b', linestyle='--')
+    ax_phase.set_ylabel('Phase [°]')
+
+    # Find crossover and ultimate frequencies
+    crossover_index = np.argmin(np.abs(gain - 0))
+    ultimate_index = np.argmin(np.abs(phase_deg + 180))
+    crossover_freq = omega[crossover_index]
+    ultimate_freq = omega[ultimate_index]
+
+    # Add annotations and arrows
+    ax_gain.text(ultimate_freq*1.1, gain[ultimate_index]/2, r'$t_{1}$', ha='center', va='bottom')
+    ax_phase.text(crossover_freq*1.1, (-180+phase_deg[crossover_index])/2, r'$t_{2}$', ha='center', va='bottom')
+    ax_gain.annotate('', xy=(ultimate_freq, gain[ultimate_index]), xytext=(ultimate_freq, 0), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
+    ax_phase.annotate('', xy=(crossover_freq, phase_deg[crossover_index]), xytext=(crossover_freq, -180), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
+
+#-----------------------------------------------------------------------------------------------------
+class Controller():
+        
+    def __init__(self, parameters):
+        
+        self.parameters = parameters
+        self.parameters['Kc'] = parameters['Kc'] if 'Kc' in parameters else 2.0
+        self.parameters['Ti'] = parameters['Ti'] if 'Ti' in parameters else 100.0
+        self.parameters['Td'] = parameters['Td'] if 'Td' in parameters else 10.0
+        self.parameters['alpha'] = parameters['alpha'] if 'alpha' in parameters else 1.0

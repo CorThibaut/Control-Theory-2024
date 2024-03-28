@@ -96,7 +96,10 @@ def PID_RT(SP, PV, Man , MVMan, MVFF, Kc, Ti, Td, alpha, Ts, MVMin,  MVMax, MV, 
     if len(MVD)==0:
         MVD.append(0)
     else:
-        MVD.append((Td/(Td+Ts)*MVD[-1]) + ((Kc*Td)/(Td+Ts))*(E[-1]-E[-2]))
+        # MVD.append((Td/(Td+Ts)*MVD[-1]) + ((Kc*Td)/(Td+Ts))*(E[-1]-E[-2]))
+        MVD.append((alpha*Td/(alpha*Td+Ts))*MVD[-1] + ((Kc*Td*alpha)/(alpha*Td+Ts))*(E[-1]-E[-2]))
+
+    
           
     #Manual mode + anti wind-up
     if Man[-1] == True:
@@ -169,6 +172,9 @@ def Margins(P, C, omega):
     # Calculate gain and phase
     gain = 20*np.log10(np.abs(PCs))
     phase_deg = (180/np.pi)*np.unwrap(np.angle(PCs))
+
+    print()
+    print() 
     
     # Plot gain
     ax_gain.semilogx(omega, gain)
@@ -196,7 +202,6 @@ def Margins(P, C, omega):
     ax_phase.text(crossover_freq*1.1, (-180+phase_deg[crossover_index])/2, r'$t_{2}$', ha='center', va='bottom')
     ax_gain.annotate('', xy=(ultimate_freq, gain[ultimate_index]), xytext=(ultimate_freq, 0), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
     ax_phase.annotate('', xy=(crossover_freq, phase_deg[crossover_index]), xytext=(crossover_freq, -180), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
-
 
 #-----------------------------------------------------------------------------------------------------
 class Controller():
