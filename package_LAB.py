@@ -143,7 +143,59 @@ def IMCTuning(k, Tlag1, Tlag2=0, theta=0, gamma=0.5, process='SOPDT'):
 
 
 #-----------------------------------------------------------------------------------------------------
-# def Margins()
+def Margins(P, C, omega):
+    
+    PC = Process({})
+    PC.parameters['Kp'] = P.parameters['Kp'] * C.parameters['Kc']
+    PC.parameters['Tlag1'] = P.parameters['Tlag1'] * C.parameters['Ti']
+    PC.parameters['Tlag2'] = P.parameters['Tlag2'] * C.parameters['Td']
+    PC.parameters['theta'] = P.parameters['theta'] * C.parameters['alpha']
+    
+    s = 1j*omega
+    
+    PCtheta = np.exp(-PC.parameters['theta']*s)
+    PCGain = PC.parameters['Kp']*np.ones_like(PCtheta)
+    PCLag1 = 1/(PC.parameters['Tlag1']*s + 1)
+    PCLag2 = 1/(PC.parameters['Tlag2']*s + 1)
+    
+    PCs = np.multiply(PCtheta,PCGain)
+    PCs = np.multiply(PCs,PCLag1)
+    PCs = np.multiply(PCs,PCLag2)
+    
+    fig, (ax_gain, ax_phase) = plt.subplots(2,1)
+    fig.set_figheight(12)
+    fig.set_figwidth(22)
+
+    # Calculate gain and phase
+    gain = 20*np.log10(np.abs(PCs))
+    phase_deg = (180/np.pi)*np.unwrap(np.angle(PCs))
+    
+    # Plot gain
+    ax_gain.semilogx(omega, gain)
+    ax_gain.set_xlim([np.min(omega), np.max(omega)])
+    ax_gain.set_ylim([np.min(20*np.log10(np.abs(PCs)/5)), np.max(20*np.log10(np.abs(PCs)*5))])
+    ax_gain.axhline(y=0, color='b', linestyle='--')
+    ax_gain.set_ylabel('Amplitude [dB]')
+    ax_gain.set_title('Bode plot')
+
+    # Plot phase
+    ax_phase.semilogx(omega, phase_deg)
+    ax_phase.set_xlim([np.min(omega), np.max(omega)])
+    ax_phase.set_ylim([-200, np.max(phase_deg)+10])
+    ax_phase.axhline(y=-180, color='b', linestyle='--')
+    ax_phase.set_ylabel('Phase [°]')
+
+    # Find crossover and ultimate frequencies
+    crossover_index = np.argmin(np.abs(gain - 0))
+    ultimate_index = np.argmin(np.abs(phase_deg + 180))
+    crossover_freq = omega[crossover_index]
+    ultimate_freq = omega[ultimate_index]
+
+    # Add annotations and arrows
+    ax_gain.text(ultimate_freq*1.1, gain[ultimate_index]/2, r'$t_{1}$', ha='center', va='bottom')
+    ax_phase.text(crossover_freq*1.1, (-180+phase_deg[crossover_index])/2, r'$t_{2}$', ha='center', va='bottom')
+    ax_gain.annotate('', xy=(ultimate_freq, gain[ultimate_index]), xytext=(ultimate_freq, 0), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
+    ax_phase.annotate('', xy=(crossover_freq, phase_deg[crossover_index]), xytext=(crossover_freq, -180), arrowprops=dict(arrowstyle='<->', lw=1.5, color='black'))
 
 
 #-----------------------------------------------------------------------------------------------------
